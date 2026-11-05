@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #07140d;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+}
+
+canvas {
+  display: block;
+}
+
+@layer components {
+  .quiz-option {
+    @apply w-full cursor-pointer border border-green-400/70 bg-neutral-900 px-4 py-3 text-left text-sm text-green-300 transition-colors md:text-base;
+  }
+  .menu-option {
+    @apply flex w-full cursor-pointer flex-col gap-1 border border-cyan-400/70 bg-neutral-900 px-4 py-3 text-left text-cyan-300 transition-colors;
+  }
+  .menu-option span {
+    @apply text-base font-bold tracking-widest md:text-lg;
+  }
+  .menu-option small {
+    @apply text-xs opacity-80;
+  }
+  .menu-option:hover,
+  .menu-option:focus-visible {
+    @apply bg-cyan-400 text-black outline-none;
+  }
+  .quiz-option.is-selected,
+  .quiz-option:hover,
+  .quiz-option:focus-visible {
+    @apply bg-green-400 text-black outline-none;
+  }
+}
