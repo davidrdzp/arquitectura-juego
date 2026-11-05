@@ -424,7 +424,30 @@ const questionBank: Question[] = [
 ]
 
 // ───────────────────────── Canvas setup ─────────────────────────
-const app = document.querySelector<HTMLDivElement>('#app')!
+/** Muestra un error fatal sobre la página (en vez de fallar en silencio con el canvas a medio pintar). */
+function showFatal(message: string): void {
+  let box = document.getElementById('fatal-error')
+  if (!box) {
+    box = document.createElement('div')
+    box.id = 'fatal-error'
+    box.style.cssText =
+      'position:fixed;left:12px;right:12px;bottom:12px;z-index:100;padding:10px 14px;background:#2a0000;' +
+      'border:2px solid #ff2a2a;color:#ff9a9a;font:13px ui-monospace,Consolas,monospace;white-space:pre-wrap'
+    document.body.appendChild(box)
+  }
+  box.textContent = `ERROR: ${message}`
+}
+window.addEventListener('error', (e) => showFatal(e.message))
+window.addEventListener('unhandledrejection', (e) => showFatal(String(e.reason)))
+
+/** Busca un elemento obligatorio; si falta lanza un error claro en lugar de un "null" críptico. */
+function requireEl<T extends Element>(selector: string): T {
+  const el = document.querySelector<T>(selector)
+  if (!el) throw new Error(`Falta el elemento "${selector}" en index.html`)
+  return el
+}
+
+const app = requireEl<HTMLDivElement>('#app')
 const canvas = document.createElement('canvas')
 app.appendChild(canvas)
 const ctx = canvas.getContext('2d')!
@@ -1995,10 +2018,10 @@ function drawGameOver(g: CanvasRenderingContext2D): void {
 }
 
 // ───────────────────────── Quiz (modal HTML) ─────────────────────────
-const modal = document.querySelector<HTMLDivElement>('#quiz-modal')!
-const quizTitle = document.querySelector<HTMLHeadingElement>('#quiz-title')!
-const quizQuestion = document.querySelector<HTMLParagraphElement>('#quiz-question')!
-const quizCounter = document.querySelector<HTMLSpanElement>('#quiz-counter')!
+const modal = requireEl<HTMLDivElement>('#quiz-modal')
+const quizTitle = requireEl<HTMLHeadingElement>('#quiz-title')
+const quizQuestion = requireEl<HTMLParagraphElement>('#quiz-question')
+const quizCounter = requireEl<HTMLSpanElement>('#quiz-counter')
 const optionButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('#quiz-options button'))
 
 // Opción resaltada del quiz (0-3), controlada por teclado (W/S, ↑/↓) o por el mouse
@@ -2140,9 +2163,9 @@ function resetRun(): void {
   setSpeedMult(cfg.startMult)
   resetTheme()
   token = null
-  nextTokenIn = 3
+  nextTokenIn = 2.5
   obstacles = []
-  nextWaveIn = 1.5
+  nextWaveIn = 0.8 // el spawner arranca casi de inmediato (el obstáculo aún tarda ~1 s en llegar al cubo)
   particles = []
   playerHidden = false
   lives = MAX_LIVES
@@ -2156,7 +2179,8 @@ function resetRun(): void {
 }
 
 // ───────────────────────── Menú de inicio (dificultad) ─────────────────────────
-const menuEl = document.querySelector<HTMLDivElement>('#menu')!
+// El menú es opcional: si falta en el HTML o no se puede ver, el juego arranca solo en la dificultad actual
+const menuEl = document.querySelector<HTMLDivElement>('#menu')
 const menuButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('#menu button'))
 const DIFFICULTY_ORDER: Difficulty[] = ['easy', 'normal', 'hard']
 let menuLoopId = 0
@@ -2176,7 +2200,12 @@ function showMenu(): void {
   stopEverything()
   resetRun()
   state = 'menu'
-  menuEl.classList.remove('hidden')
+  menuEl?.classList.remove('hidden')
+  // Red de seguridad: sin menú visible el jugador se quedaría mirando el canvas sin poder empezar
+  if (!menuEl || menuEl.getClientRects().length === 0) {
+    startGame(difficulty)
+    return
+  }
   menuButtons[DIFFICULTY_ORDER.indexOf(difficulty)]?.focus() // vuelve a marcar la última dificultad
   menuLastTime = performance.now()
   menuLoopId = requestAnimationFrame(menuFrame)
@@ -2186,7 +2215,7 @@ function startGame(d: Difficulty): void {
   difficulty = d
   cfg = DIFFICULTIES[d]
   highScore = loadHighScore() // cada dificultad guarda su propio récord
-  menuEl.classList.add('hidden')
+  menuEl?.classList.add('hidden')
   ;(document.activeElement as HTMLElement | null)?.blur()
   restartGame()
 }
@@ -2214,8 +2243,20 @@ function render(): void {
   ctx.shadowBlur = 0
   drawPhaseFlash(ctx)
   if (state !== 'menu') drawHud(ctx)
+  if (state === 'menu') drawMenuHint(ctx)
   if (state === 'gameover') drawGameOver(ctx)
   if (state === 'gameover' && glitchT > 0) applyGlitch(ctx) // post-proceso sobre TODO el dibujo
+}
+
+/** Aviso pintado en el propio canvas: se ve aunque el menú HTML tardara en cargar o quedara oculto. */
+function drawMenuHint(g: CanvasRenderingContext2D): void {
+  g.shadowBlur = 0
+  g.textAlign = 'center'
+  g.textBaseline = 'alphabetic'
+  g.fillStyle = 'rgba(180, 255, 255, 0.85)'
+  g.font = `bold ${Math.max(13, Math.min(20, width / 50))}px ui-monospace, Consolas, monospace`
+  g.fillText('Elige dificultad:  1 FÁCIL  ·  2 NORMAL  ·  3 DIFÍCIL', width / 2, height - 24)
+  g.textAlign = 'start'
 }
 
 /**
