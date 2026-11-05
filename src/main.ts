@@ -447,6 +447,167 @@ function requireEl<T extends Element>(selector: string): T {
   return el
 }
 
+// ───────────────────────── Interfaz HTML autónoma (menú y quiz) ─────────────────────────
+// El menú y el modal de preguntas se crean desde aquí, con estilos en línea y directamente en <body>.
+// Así funcionan igual aunque index.html cambie o Vite/Vercel lo procesen de otra forma.
+
+const UI_FONT = "ui-monospace, Consolas, 'Courier New', monospace"
+
+/** Crea un elemento con estilos en línea, texto opcional y lo agrega a su padre. */
+function makeEl<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  style: string,
+  text = '',
+  parent?: HTMLElement,
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag)
+  node.style.cssText = style
+  if (text) node.textContent = text
+  parent?.appendChild(node)
+  return node
+}
+
+// ── Menú de dificultad ──
+const MENU_OPTIONS = [
+  { title: '1 · FÁCIL', info: 'Pocos obstáculos y la velocidad sube despacio' },
+  { title: '2 · NORMAL', info: 'La experiencia estándar' },
+  { title: '3 · DIFÍCIL', info: 'Empiezas más rápido, con más obstáculos y más espera entre saltos' },
+]
+
+function paintMenuButton(btn: HTMLButtonElement, active: boolean): void {
+  btn.style.background = active ? '#00ffff' : '#111111'
+  btn.style.color = active ? '#000000' : '#7fe9f2'
+}
+
+/** Resalta (y enfoca) un botón del menú, y apaga los demás. */
+function setMenuSelection(buttons: HTMLButtonElement[], selected: HTMLButtonElement | undefined): void {
+  buttons.forEach((b) => paintMenuButton(b, b === selected))
+  selected?.focus()
+}
+
+function buildMenu(): { menuEl: HTMLDivElement; menuButtons: HTMLButtonElement[] } {
+  document.getElementById('menu')?.remove() // por si el HTML trae uno viejo
+  const menuEl = makeEl(
+    'div',
+    `position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;display:flex;overflow-y:auto;box-sizing:border-box;` +
+      `padding:12px;background:rgba(0,0,0,0.7);font-family:${UI_FONT};`,
+  )
+  menuEl.id = 'menu'
+  menuEl.setAttribute('role', 'dialog')
+  menuEl.setAttribute('aria-label', 'Menú de dificultad')
+
+  const box = makeEl(
+    'div',
+    `margin:auto;width:100%;max-width:440px;box-sizing:border-box;padding:28px;background:#000000;` +
+      `border:2px solid #00ffff;box-shadow:0 0 20px #00ffff;color:#7fe9f2;`,
+    '',
+    menuEl,
+  )
+  makeEl('h1', 'margin:0 0 6px;font-size:26px;letter-spacing:0.12em;color:#b8f8ff;', 'OUT-OF-ORDER RUNNER', box)
+  makeEl(
+    'p',
+    'margin:0 0 20px;padding-bottom:12px;border-bottom:1px solid rgba(0,255,255,0.4);font-size:13px;color:#4fb8c4;',
+    'Elige la dificultad del pipeline',
+    box,
+  )
+
+  const list = makeEl('div', 'display:flex;flex-direction:column;gap:12px;', '', box)
+  const menuButtons = MENU_OPTIONS.map((opt) => {
+    const btn = makeEl(
+      'button',
+      `display:flex;flex-direction:column;gap:4px;width:100%;box-sizing:border-box;padding:12px 16px;text-align:left;` +
+        `cursor:pointer;border:1px solid rgba(0,255,255,0.7);outline:none;font-family:${UI_FONT};`,
+      '',
+      list,
+    )
+    btn.type = 'button'
+    makeEl('span', 'font-size:18px;font-weight:bold;letter-spacing:0.1em;', opt.title, btn)
+    makeEl('small', 'font-size:12px;opacity:0.85;', opt.info, btn)
+    paintMenuButton(btn, false)
+    btn.addEventListener('mouseenter', () => setMenuSelection(menuButtons, btn))
+    return btn
+  })
+
+  makeEl(
+    'p',
+    'margin:20px 0 0;font-size:12px;line-height:1.6;color:#4fb8c4;',
+    'Elige con las teclas 1, 2 o 3, con el clic, o con las flechas y Enter.\n' +
+      'Durante el juego: flechas o W/S para cambiar de carril, Espacio para saltar.',
+    box,
+  ).style.whiteSpace = 'pre-line'
+
+  document.body.appendChild(menuEl)
+  return { menuEl, menuButtons }
+}
+
+// ── Modal de preguntas (quiz) ──
+function paintQuizOption(btn: HTMLButtonElement, selected: boolean): void {
+  btn.style.background = selected ? '#4ade80' : '#171717'
+  btn.style.color = selected ? '#000000' : '#86efac'
+}
+
+function buildQuizModal() {
+  document.getElementById('quiz-modal')?.remove() // por si el HTML trae uno viejo
+  const modal = makeEl(
+    'div',
+    `position:fixed;top:0;left:0;right:0;bottom:0;z-index:10000;display:none;overflow-y:auto;box-sizing:border-box;` +
+      `padding:16px;background:rgba(0,0,0,0.85);font-family:${UI_FONT};`,
+  )
+  modal.id = 'quiz-modal'
+  modal.setAttribute('role', 'dialog')
+  modal.setAttribute('aria-label', 'Pregunta')
+
+  const box = makeEl(
+    'div',
+    `margin:auto;width:100%;max-width:720px;box-sizing:border-box;padding:28px;background:#0a0a0a;` +
+      `border:2px solid #39ff14;box-shadow:0 0 30px rgba(57,255,20,0.45);color:#39ff14;`,
+    '',
+    modal,
+  )
+  const header = makeEl(
+    'div',
+    'display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;padding-bottom:12px;' +
+      'border-bottom:1px solid rgba(57,255,20,0.4);',
+    '',
+    box,
+  )
+  const quizTitle = makeEl(
+    'h2',
+    'margin:0;font-size:20px;letter-spacing:0.1em;color:#86efac;',
+    '> INTERRUPCIÓN DE HARDWARE_',
+    header,
+  )
+  const quizCounter = makeEl('span', 'font-size:12px;color:rgba(57,255,20,0.7);white-space:nowrap;', '', header)
+  const quizQuestion = makeEl('p', 'margin:0 0 24px;font-size:18px;line-height:1.6;color:#dcfce7;', '', box)
+
+  const list = makeEl('div', 'display:flex;flex-direction:column;gap:12px;', '', box)
+  const optionButtons = [0, 1, 2, 3].map(() => {
+    const btn = makeEl(
+      'button',
+      `width:100%;box-sizing:border-box;padding:12px 16px;text-align:left;cursor:pointer;font-size:15px;outline:none;` +
+        `border:1px solid rgba(74,222,128,0.7);font-family:${UI_FONT};`,
+      '',
+      list,
+    )
+    btn.type = 'button'
+    paintQuizOption(btn, false)
+    return btn
+  })
+
+  makeEl(
+    'p',
+    'margin:20px 0 0;font-size:12px;color:rgba(57,255,20,0.6);',
+    'Elige con el mouse, con W/S o las flechas y Enter, o con las teclas 1-4 y A-D.',
+    box,
+  )
+
+  document.body.appendChild(modal)
+  return { modal, quizTitle, quizCounter, quizQuestion, optionButtons }
+}
+
+const { menuEl, menuButtons } = buildMenu()
+const { modal, quizTitle, quizCounter, quizQuestion, optionButtons } = buildQuizModal()
+
 const app = requireEl<HTMLDivElement>('#app')
 const canvas = document.createElement('canvas')
 app.appendChild(canvas)
@@ -1505,7 +1666,7 @@ window.addEventListener('keydown', (e) => {
       const cur = Math.max(0, menuButtons.indexOf(document.activeElement as HTMLButtonElement))
       const down = e.code === 'ArrowDown' || e.code === 'KeyS'
       const next = (cur + (down ? 1 : menuButtons.length - 1)) % menuButtons.length
-      menuButtons[next].focus()
+      setMenuSelection(menuButtons, menuButtons[next])
       e.preventDefault()
       return
     }
@@ -2018,18 +2179,14 @@ function drawGameOver(g: CanvasRenderingContext2D): void {
 }
 
 // ───────────────────────── Quiz (modal HTML) ─────────────────────────
-const modal = requireEl<HTMLDivElement>('#quiz-modal')
-const quizTitle = requireEl<HTMLHeadingElement>('#quiz-title')
-const quizQuestion = requireEl<HTMLParagraphElement>('#quiz-question')
-const quizCounter = requireEl<HTMLSpanElement>('#quiz-counter')
-const optionButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('#quiz-options button'))
+// (el modal y sus botones se crean en buildQuizModal(), más arriba)
 
 // Opción resaltada del quiz (0-3), controlada por teclado (W/S, ↑/↓) o por el mouse
 let quizSelected = 0
 
 function setQuizSelection(i: number): void {
   quizSelected = ((i % optionButtons.length) + optionButtons.length) % optionButtons.length
-  optionButtons.forEach((btn, k) => btn.classList.toggle('is-selected', k === quizSelected))
+  optionButtons.forEach((btn, k) => paintQuizOption(btn, k === quizSelected))
   optionButtons[quizSelected].focus()
 }
 
@@ -2086,13 +2243,13 @@ function openQuiz(): void {
       btn.textContent = `${'ABCD'[i]}) ${question.opciones[order[i]]}`
     })
 
-    modal.classList.remove('hidden')
+    modal.style.display = 'flex'
     setQuizSelection(0) // la primera opción queda resaltada; W/S o ↑/↓ + Enter para elegir
   }, QUIZ_MODAL_DELAY_MS)
 }
 
 function closeQuiz(): void {
-  modal.classList.add('hidden')
+  modal.style.display = 'none'
   ;(document.activeElement as HTMLElement | null)?.blur()
 }
 
@@ -2179,9 +2336,7 @@ function resetRun(): void {
 }
 
 // ───────────────────────── Menú de inicio (dificultad) ─────────────────────────
-// El menú es opcional: si falta en el HTML o no se puede ver, el juego arranca solo en la dificultad actual
-const menuEl = document.querySelector<HTMLDivElement>('#menu')
-const menuButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('#menu button'))
+// (el menú se crea en buildMenu(), más arriba)
 const DIFFICULTY_ORDER: Difficulty[] = ['easy', 'normal', 'hard']
 let menuLoopId = 0
 let menuLastTime = 0
@@ -2200,13 +2355,8 @@ function showMenu(): void {
   stopEverything()
   resetRun()
   state = 'menu'
-  menuEl?.classList.remove('hidden')
-  // Red de seguridad: sin menú visible el jugador se quedaría mirando el canvas sin poder empezar
-  if (!menuEl || menuEl.getClientRects().length === 0) {
-    startGame(difficulty)
-    return
-  }
-  menuButtons[DIFFICULTY_ORDER.indexOf(difficulty)]?.focus() // vuelve a marcar la última dificultad
+  menuEl.style.display = 'flex'
+  setMenuSelection(menuButtons, menuButtons[DIFFICULTY_ORDER.indexOf(difficulty)]) // marca la última dificultad
   menuLastTime = performance.now()
   menuLoopId = requestAnimationFrame(menuFrame)
 }
@@ -2215,7 +2365,7 @@ function startGame(d: Difficulty): void {
   difficulty = d
   cfg = DIFFICULTIES[d]
   highScore = loadHighScore() // cada dificultad guarda su propio récord
-  menuEl?.classList.add('hidden')
+  menuEl.style.display = 'none'
   ;(document.activeElement as HTMLElement | null)?.blur()
   restartGame()
 }
@@ -2243,20 +2393,8 @@ function render(): void {
   ctx.shadowBlur = 0
   drawPhaseFlash(ctx)
   if (state !== 'menu') drawHud(ctx)
-  if (state === 'menu') drawMenuHint(ctx)
   if (state === 'gameover') drawGameOver(ctx)
   if (state === 'gameover' && glitchT > 0) applyGlitch(ctx) // post-proceso sobre TODO el dibujo
-}
-
-/** Aviso pintado en el propio canvas: se ve aunque el menú HTML tardara en cargar o quedara oculto. */
-function drawMenuHint(g: CanvasRenderingContext2D): void {
-  g.shadowBlur = 0
-  g.textAlign = 'center'
-  g.textBaseline = 'alphabetic'
-  g.fillStyle = 'rgba(180, 255, 255, 0.85)'
-  g.font = `bold ${Math.max(13, Math.min(20, width / 50))}px ui-monospace, Consolas, monospace`
-  g.fillText('Elige dificultad:  1 FÁCIL  ·  2 NORMAL  ·  3 DIFÍCIL', width / 2, height - 24)
-  g.textAlign = 'start'
 }
 
 /**
